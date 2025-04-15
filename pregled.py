@@ -1,20 +1,15 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-
-# Če želiš zemljevid:
 import geopandas as gpd
 from shapely.geometry import Point
 import contextily as ctx
 
-# Nastavitve za lepše grafe
 sns.set(style="whitegrid")
 plt.rcParams["figure.autolayout"] = True
 
-# Naloži podatke
 df = pd.read_csv("segmenti.csv")
 
-# Osnovne informacije
 print("Osnovne informacije:")
 print(df.info())
 print("\nStatistični opis:")
@@ -80,5 +75,48 @@ plt.close()
 print("\nTop 10 najstrmejših vzponov:")
 top_strmi = df[df["avg_grade"] > 0].sort_values("avg_grade", ascending=False).head(10)
 print(top_strmi[["name", "avg_grade", "elev_difference", "distance"]])
+
+#heatmap
+
+df_geo = df.dropna(subset=["start_lat", "start_lng"])
+
+geometry = [Point(xy) for xy in zip(df_geo["start_lng"], df_geo["start_lat"])]
+gdf = gpd.GeoDataFrame(df_geo, geometry=geometry, crs="EPSG:4326")
+
+gdf = gdf.to_crs(epsg=3857)
+
+plt.figure(figsize=(10, 8))
+ax = plt.gca()
+
+sns.kdeplot(
+    x=gdf.geometry.x,
+    y=gdf.geometry.y,
+    cmap="Reds",
+    fill=True,
+    bw_adjust=0.2,
+    ax=ax
+)
+
+ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron)
+
+ax.set_axis_off()
+plt.title("Toplotni zemljevid kolesarskih segmentov po Sloveniji", fontsize=14)
+plt.savefig("heatmap_aktivnost_zemljevid.png")
+plt.close()
+
+
+# Preštejemo kolikokrat se posamezni segment pojavi (po imenu)
+segment_counts = df["name"].value_counts().reset_index()
+segment_counts.columns = ["name", "count"]
+
+# Združimo s podatki, da imamo še ostale informacije (prva pojavitev vsakega imena)
+top_segments = pd.merge(segment_counts, df.drop_duplicates("name"), on="name")
+
+# Izpišemo top 10 segmentov z največ pojavitvami
+top10 = top_segments.sort_values("count", ascending=False).head(10)
+
+print("\nTop 10 najpogostejših segmentov (po številu pojavitev):")
+print(top10[["name", "count", "distance", "avg_grade", "elev_difference"]])
+
 
 print("\nVse vizualizacije so bile shranjene kot slike PNG.")
