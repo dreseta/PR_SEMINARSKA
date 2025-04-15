@@ -76,32 +76,53 @@ print("\nTop 10 najstrmejših vzponov:")
 top_strmi = df[df["avg_grade"] > 0].sort_values("avg_grade", ascending=False).head(10)
 print(top_strmi[["name", "avg_grade", "elev_difference", "distance"]])
 
-#heatmap
+import geopandas as gpd
+from shapely.geometry import Point
+import contextily as ctx
+import matplotlib.pyplot as plt
+import seaborn as sns
 
+# Odstrani vrstice brez geografskih podatkov
 df_geo = df.dropna(subset=["start_lat", "start_lng"])
 
+# Ustvari geometrijo
 geometry = [Point(xy) for xy in zip(df_geo["start_lng"], df_geo["start_lat"])]
 gdf = gpd.GeoDataFrame(df_geo, geometry=geometry, crs="EPSG:4326")
 
+# Pretvori v projekcijo Web Mercator
 gdf = gdf.to_crs(epsg=3857)
 
-plt.figure(figsize=(10, 8))
-ax = plt.gca()
+# Nastavi sliko
+fig, ax = plt.subplots(figsize=(12, 10), dpi=150)
 
+# Toplotni prikaz s Seaborn
 sns.kdeplot(
     x=gdf.geometry.x,
     y=gdf.geometry.y,
     cmap="Reds",
     fill=True,
     bw_adjust=0.2,
-    ax=ax
+    ax=ax,
+    alpha=0.6,
+    levels=100,
+    thresh=0.05
 )
 
-ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron)
+# Dodaj zemljevid Slovenije
+ctx.add_basemap(ax, source=ctx.providers.CartoDB.Positron, crs=gdf.crs)
 
+# Prilagodi izris
+ax.set_title("Toplotni zemljevid kolesarskih segmentov po Sloveniji", fontsize=16)
 ax.set_axis_off()
-plt.title("Toplotni zemljevid kolesarskih segmentov po Sloveniji", fontsize=14)
-plt.savefig("heatmap_aktivnost_zemljevid.png")
+
+# Zoom na območje Slovenije
+buffer = 5000  # dodatni prostor okoli točk
+xmin, ymin, xmax, ymax = gdf.total_bounds
+ax.set_xlim(xmin - buffer, xmax + buffer)
+ax.set_ylim(ymin - buffer, ymax + buffer)
+
+# Shrani sliko
+plt.savefig("heatmap_aktivnost_zemljevid.png", bbox_inches="tight", pad_inches=0.1)
 plt.close()
 
 
